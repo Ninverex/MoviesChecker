@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButt
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import Qt
 from database import register_user
-
+import re  # regex do walidacji e-maila
 
 class RegisterDialog(QDialog):
     def __init__(self, parent):
@@ -53,9 +53,14 @@ class RegisterDialog(QDialog):
         self.setLayout(self.layout)
 
     def complete_registration(self):
-        email = self.input_email.text()
-        login = self.input_login.text()
-        password = self.input_password.text()
+        email = self.input_email.text().strip()  # Usuń spacje na początku i końcu
+        login = self.input_login.text().strip()  # Usuń spacje na początku i końcu
+        password = self.input_password.text().strip()  # Usuń spacje na początku i końcu
+
+        # Walidacja e-maila
+        if not self.validate_email(email):
+            QMessageBox.warning(self, "Error", "Invalid email format! Email must be max 10 characters before @, followed by a domain and a dot (e.g., user@domain.com)")
+            return
 
         if not email or not login or not password:
             QMessageBox.warning(self, "Error", "All fields are required!")
@@ -66,6 +71,11 @@ class RegisterDialog(QDialog):
             self.accept()
         else:
             QMessageBox.warning(self, "Error", "Username or email already exists!")
+
+    def validate_email(self, email):
+        # Wzorzec regex do walidacji e-maila
+        pattern = r"^[a-zA-Z0-9]{1,10}@[a-zA-Z0-9]+\.[a-zA-Z]{2,}$"
+        return re.match(pattern, email) is not None
 
     def input_style(self):
         return """
