@@ -7,8 +7,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 from reportlab.pdfgen import canvas
 
+
 class MainWindow(QMainWindow):
-    logout_success = Signal()  # Dodaj sygnał logout_success
+    logout_success = Signal()
 
     def __init__(self):
         super().__init__()
@@ -36,7 +37,7 @@ class MainWindow(QMainWindow):
 
         self.btn_settings = QPushButton("Settings")
         self.btn_help = QPushButton("Help")
-        self.btn_logout = QPushButton("Logout")  # Zmiana z btn_about na btn_logout
+        self.btn_logout = QPushButton("Logout")
 
         left_layout.addWidget(self.btn_settings)
         left_layout.addWidget(self.btn_help)
@@ -46,6 +47,35 @@ class MainWindow(QMainWindow):
         self.center_panel = QWidget()
         center_layout = QVBoxLayout(self.center_panel)
 
+        # --- Filtry ---
+        self.filter_panel = QWidget()
+        filter_layout = QHBoxLayout(self.filter_panel)
+
+        # Filtrowanie po gatunku
+        self.filter_genre = QComboBox()
+        self.filter_genre.addItem("All Genres")
+        self.filter_genre.addItems([
+            "Action", "Adventure", "Comedy", "Drama", "Horror", "Thriller",
+            "Science Fiction (Sci-Fi)", "Fantasy", "Romance", "Mystery", "Crime",
+            "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
+        ])
+
+        # Filtrowanie po roku
+        self.filter_year = QLineEdit()
+        self.filter_year.setPlaceholderText("Year (e.g. 2020 or 2010-2020)")
+
+        # Przyciski filtrowania
+        self.btn_apply_filter = QPushButton("Apply Filters")
+        self.btn_apply_filter.clicked.connect(self.load_movies)
+        self.btn_reset_filter = QPushButton("Reset")
+        self.btn_reset_filter.clicked.connect(self.reset_filters)
+
+        filter_layout.addWidget(QLabel("Filter by:"))
+        filter_layout.addWidget(self.filter_genre)
+        filter_layout.addWidget(self.filter_year)
+        filter_layout.addWidget(self.btn_apply_filter)
+        filter_layout.addWidget(self.btn_reset_filter)
+
         self.label_title = QLabel("Movies List")
         self.label_title.setStyleSheet("font-size: 20px; font-weight: bold;")
 
@@ -54,6 +84,7 @@ class MainWindow(QMainWindow):
         self.load_movies()
 
         center_layout.addWidget(self.label_title)
+        center_layout.addWidget(self.filter_panel)
         center_layout.addWidget(self.table)
 
         # --- Prawy panel (Formularz) ---
@@ -69,7 +100,6 @@ class MainWindow(QMainWindow):
         self.input_year = QLineEdit()
         self.input_year.setPlaceholderText("Year")
 
-        # Zmiana QLineEdit na QComboBox dla gatunków filmowych
         self.input_genre = QComboBox()
         self.input_genre.setPlaceholderText("Genre")
         self.input_genre.addItems([
@@ -90,7 +120,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(self.label_add_movie)
         right_layout.addWidget(self.input_title)
         right_layout.addWidget(self.input_year)
-        right_layout.addWidget(self.input_genre)  # Użyj QComboBox zamiast QLineEdit
+        right_layout.addWidget(self.input_genre)
         right_layout.addWidget(self.btn_add_movie)
         right_layout.addWidget(self.btn_delete_movie)
         right_layout.addWidget(self.btn_export_pdf)
@@ -101,14 +131,48 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central_widget)
 
-        # Połączenie przycisku logout z funkcją logout
         self.btn_logout.clicked.connect(self.logout)
 
     def load_movies(self):
         self.table.setRowCount(0)
         conn = sqlite3.connect("movies.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT title, year, genre FROM movies")
+
+        # Pobierz wartości filtrów
+        genre_filter = self.filter_genre.currentText()
+        year_filter = self.filter_year.text()
+
+        # Buduj zapytanie SQL
+        query = "SELECT title, year, genre FROM movies"
+        params = []
+
+        conditions = []
+        if genre_filter != "All Genres":
+            conditions.append("genre = ?")
+            params.append(genre_filter)
+
+        if year_filter:
+            if "-" in year_filter:
+                try:
+                    start_year, end_year = map(int, year_filter.split("-"))
+                    conditions.append("year BETWEEN ? AND ?")
+                    params.extend([start_year, end_year])
+                except:
+                    QMessageBox.warning(self, "Error", "Invalid year range format! Use YYYY-YYYY")
+                    return
+            else:
+                try:
+                    year = int(year_filter)
+                    conditions.append("year = ?")
+                    params.append(year)
+                except:
+                    QMessageBox.warning(self, "Error", "Invalid year format!")
+                    return
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        cursor.execute(query, params)
         movies = cursor.fetchall()
         conn.close()
 
@@ -118,10 +182,15 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 1, QTableWidgetItem(str(year)))
             self.table.setItem(row, 2, QTableWidgetItem(genre))
 
+    def reset_filters(self):
+        self.filter_genre.setCurrentIndex(0)
+        self.filter_year.clear()
+        self.load_movies()
+
     def add_movie(self):
         title = self.input_title.text()
         year = self.input_year.text()
-        genre = self.input_genre.currentText()  # Pobierz wybrany gatunek z QComboBox
+        genre = self.input_genre.currentText()
 
         if not title or not year or not genre:
             QMessageBox.warning(self, "Error", "All fields must be filled!")
@@ -136,7 +205,7 @@ class MainWindow(QMainWindow):
         self.load_movies()
         self.input_title.clear()
         self.input_year.clear()
-        self.input_genre.setCurrentIndex(0)  # Resetuj combobox do pierwszego elementu
+        self.input_genre.setCurrentIndex(0)
 
     def delete_movie(self):
         selected_row = self.table.currentRow()
@@ -174,8 +243,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Success", "PDF Exported Successfully!")
 
     def logout(self):
-        self.close()  # Zamknij główne okno
-        self.logout_success.emit()  # Wyślij sygnał logout_success
+        self.close()
+        self.logout_success.emit()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
