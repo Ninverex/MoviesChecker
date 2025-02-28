@@ -2,12 +2,14 @@ import sys
 import sqlite3
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog
+    QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog, QComboBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from reportlab.pdfgen import canvas
 
 class MainWindow(QMainWindow):
+    logout_success = Signal()  # Dodaj sygnał logout_success
+
     def __init__(self):
         super().__init__()
 
@@ -34,11 +36,11 @@ class MainWindow(QMainWindow):
 
         self.btn_settings = QPushButton("Settings")
         self.btn_help = QPushButton("Help")
-        self.btn_about = QPushButton("About")
+        self.btn_logout = QPushButton("Logout")  # Zmiana z btn_about na btn_logout
 
         left_layout.addWidget(self.btn_settings)
         left_layout.addWidget(self.btn_help)
-        left_layout.addWidget(self.btn_about)
+        left_layout.addWidget(self.btn_logout)
 
         # --- Centralna część (Tabela) ---
         self.center_panel = QWidget()
@@ -66,8 +68,15 @@ class MainWindow(QMainWindow):
         self.input_title.setPlaceholderText("Title")
         self.input_year = QLineEdit()
         self.input_year.setPlaceholderText("Year")
-        self.input_genre = QLineEdit()
+
+        # Zmiana QLineEdit na QComboBox dla gatunków filmowych
+        self.input_genre = QComboBox()
         self.input_genre.setPlaceholderText("Genre")
+        self.input_genre.addItems([
+            "Action", "Adventure", "Comedy", "Drama", "Horror", "Thriller",
+            "Science Fiction (Sci-Fi)", "Fantasy", "Romance", "Mystery", "Crime",
+            "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
+        ])
 
         self.btn_add_movie = QPushButton("Add Movie")
         self.btn_add_movie.clicked.connect(self.add_movie)
@@ -81,7 +90,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(self.label_add_movie)
         right_layout.addWidget(self.input_title)
         right_layout.addWidget(self.input_year)
-        right_layout.addWidget(self.input_genre)
+        right_layout.addWidget(self.input_genre)  # Użyj QComboBox zamiast QLineEdit
         right_layout.addWidget(self.btn_add_movie)
         right_layout.addWidget(self.btn_delete_movie)
         right_layout.addWidget(self.btn_export_pdf)
@@ -91,6 +100,9 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.right_panel)
 
         self.setCentralWidget(central_widget)
+
+        # Połączenie przycisku logout z funkcją logout
+        self.btn_logout.clicked.connect(self.logout)
 
     def load_movies(self):
         self.table.setRowCount(0)
@@ -109,7 +121,7 @@ class MainWindow(QMainWindow):
     def add_movie(self):
         title = self.input_title.text()
         year = self.input_year.text()
-        genre = self.input_genre.text()
+        genre = self.input_genre.currentText()  # Pobierz wybrany gatunek z QComboBox
 
         if not title or not year or not genre:
             QMessageBox.warning(self, "Error", "All fields must be filled!")
@@ -124,7 +136,7 @@ class MainWindow(QMainWindow):
         self.load_movies()
         self.input_title.clear()
         self.input_year.clear()
-        self.input_genre.clear()
+        self.input_genre.setCurrentIndex(0)  # Resetuj combobox do pierwszego elementu
 
     def delete_movie(self):
         selected_row = self.table.currentRow()
@@ -160,6 +172,10 @@ class MainWindow(QMainWindow):
 
         pdf.save()
         QMessageBox.information(self, "Success", "PDF Exported Successfully!")
+
+    def logout(self):
+        self.close()  # Zamknij główne okno
+        self.logout_success.emit()  # Wyślij sygnał logout_success
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

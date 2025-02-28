@@ -3,6 +3,7 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import Qt
 from database import register_user
 
+
 class RegisterDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
