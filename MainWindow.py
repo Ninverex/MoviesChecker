@@ -1,5 +1,7 @@
 import sys
 import sqlite3
+import json
+import csv
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog, QComboBox
@@ -26,21 +28,22 @@ class MainWindow(QMainWindow):
         self.left_panel.setFixedWidth(200)
         left_layout = QVBoxLayout(self.left_panel)
 
-        self.btn_home = QPushButton("Home")
-        self.btn_reports = QPushButton("Reports")
-        self.btn_account = QPushButton("My Account")
+        # Przyciski do obsługi danych
+        self.btn_save_json = QPushButton("Save to JSON")
+        self.btn_load_json = QPushButton("Load from JSON")
+        self.btn_save_csv = QPushButton("Save to CSV")
+        self.btn_load_csv = QPushButton("Load from CSV")
 
-        left_layout.addWidget(self.btn_home)
-        left_layout.addWidget(self.btn_reports)
-        left_layout.addWidget(self.btn_account)
+        left_layout.addWidget(self.btn_save_json)
+        left_layout.addWidget(self.btn_load_json)
+        left_layout.addWidget(self.btn_save_csv)
+        left_layout.addWidget(self.btn_load_csv)
         left_layout.addStretch()
 
-        self.btn_settings = QPushButton("Settings")
-        self.btn_help = QPushButton("Help")
+
         self.btn_logout = QPushButton("Logout")
 
-        left_layout.addWidget(self.btn_settings)
-        left_layout.addWidget(self.btn_help)
+
         left_layout.addWidget(self.btn_logout)
 
         # --- Centralna część (Tabela) ---
@@ -131,7 +134,12 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central_widget)
 
+        # Podłączenie przycisków do metod
         self.btn_logout.clicked.connect(self.logout)
+        self.btn_save_json.clicked.connect(self.save_to_json)
+        self.btn_load_json.clicked.connect(self.load_from_json)
+        self.btn_save_csv.clicked.connect(self.save_to_csv)
+        self.btn_load_csv.clicked.connect(self.load_from_csv)
 
     def load_movies(self):
         self.table.setRowCount(0)
@@ -246,6 +254,122 @@ class MainWindow(QMainWindow):
         self.close()
         self.logout_success.emit()
 
+    def save_to_json(self):
+        """Zapisuje listę filmów do pliku JSON"""
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save to JSON", "", "JSON Files (*.json)")
+        if not file_name:
+            return
+
+        conn = sqlite3.connect("movies.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, year, genre FROM movies")
+        movies = cursor.fetchall()
+        conn.close()
+
+        movies_list = [{"title": title, "year": year, "genre": genre} for title, year, genre in movies]
+
+        try:
+            with open(file_name, 'w') as f:
+                json.dump(movies_list, f, indent=4)
+            QMessageBox.information(self, "Success", "Data saved to JSON successfully.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Error saving JSON: {str(e)}")
+
+    def load_from_json(self):
+        """Wczytuje filmy z pliku JSON"""
+        file_name, _ = QFileDialog.getOpenFileName(self, "Load from JSON", "", "JSON Files (*.json)")
+        if not file_name:
+            return
+
+        try:
+            with open(file_name, 'r') as f:
+                movies_list = json.load(f)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Error loading JSON: {str(e)}")
+            return
+
+        conn = sqlite3.connect("movies.db")
+        cursor = conn.cursor()
+
+        added = 0
+        duplicates = 0
+        for movie in movies_list:
+            # Sprawdź czy film już istnieje
+            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?",
+                         (movie["title"], movie["year"]))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)",
+                              (movie["title"], movie["year"], movie["genre"]))
+                added += 1
+            else:
+                duplicates += 1
+
+        conn.commit()
+        conn.close()
+        self.load_movies()
+        QMessageBox.information(self, "Import Complete",
+                               f"Added {added} new movies. Skipped {duplicates} duplicates.")
+
+    def save_to_csv(self):
+        """Zapisuje listę filmów do pliku CSV"""
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save to CSV", "", "CSV Files (*.csv)")
+        if not file_name:
+            return
+
+        conn = sqlite3.connect("movies.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, year, genre FROM movies")
+        movies = cursor.fetchall()
+        conn.close()
+
+        try:
+            with open(file_name, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["title", "year", "genre"])
+                writer.writerows(movies)
+            QMessageBox.information(self, "Success", "Data saved to CSV successfully.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Error saving CSV: {str(e)}")
+
+    def load_from_csv(self):
+        """Wczytuje filmy z pliku CSV"""
+        file_name, _ = QFileDialog.getOpenFileName(self, "Load from CSV", "", "CSV Files (*.csv)")
+        if not file_name:
+            return
+
+        try:
+            with open(file_name, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                movies_list = list(reader)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Error loading CSV: {str(e)}")
+            return
+
+        conn = sqlite3.connect("movies.db")
+        cursor = conn.cursor()
+
+        added = 0
+        duplicates = 0
+        for row in movies_list:
+            try:
+                year = int(row["year"])
+            except ValueError:
+                continue  # Pomijaj nieprawidłowe lata
+
+            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?",
+                         (row["title"], year))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)",
+                              (row["title"], year, row["genre"]))
+                added += 1
+            else:
+                duplicates += 1
+
+        conn.commit()
+        conn.close()
+        self.load_movies()
+        QMessageBox.information(self, "Import Complete",
+                               f"Added {added} new movies. Skipped {duplicates} duplicates.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
