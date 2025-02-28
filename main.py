@@ -18,7 +18,14 @@ class AppManager:
     def show_main_window(self):
         self.login_screen.close()  # Zamknięcie ekranu logowania
         self.main_window = MainWindow()  # Uruchomienie aplikacji głównej
+        self.main_window.logout_success.connect(self.show_login_screen)  # Połączenie sygnału logout_success
         self.main_window.show()
+
+    def show_login_screen(self):
+        self.main_window.close()  # Zamknięcie głównego okna
+        self.login_screen = LoginScreen()  # Ponowne otwarcie ekranu logowania
+        self.login_screen.login_success.connect(self.show_main_window)  # Ponowne połączenie sygnału login_success
+        self.login_screen.show()
 
 if __name__ == "__main__":
     AppManager()
