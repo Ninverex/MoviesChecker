@@ -1,43 +1,81 @@
 import sqlite3
-import bcrypt
+from PySide6.QtWidgets import QMessageBox
+from werkzeug.security import generate_password_hash, check_password_hash
 
-DB_FILE = "users.db"
 
-def create_table():
-    with sqlite3.connect(DB_FILE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                login TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
-            )
-        """)
-        conn.commit()
+def create_tables():
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT UNIQUE NOT NULL,
+                        login TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL)''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS movies (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        year INTEGER,
+                        genre TEXT)''')
+
+    conn.commit()
+    conn.close()
+
 
 def register_user(email, login, password):
-    create_table()
-    hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
 
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO users (email, login, password) VALUES (?, ?, ?)",
-                           (email, login, hashed_password))
-            conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False  # Login lub email już istnieją
+    cursor.execute("SELECT * FROM users WHERE email = ? OR login = ?", (email, login))
+    if cursor.fetchone():
+        return False
+
+    hashed_password = generate_password_hash(password)
+    cursor.execute("INSERT INTO users (email, login, password) VALUES (?, ?, ?)", (email, login, hashed_password))
+    conn.commit()
+    conn.close()
+    return True
+
 
 def login_user(login, password):
-    create_table()
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
 
-    with sqlite3.connect(DB_FILE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT password FROM users WHERE login = ?", (login,))
-        row = cursor.fetchone()
+    cursor.execute("SELECT password FROM users WHERE login = ?", (login,))
+    user = cursor.fetchone()
 
-        if row and bcrypt.checkpw(password.encode(), row[0].encode()):
-            return True
-        return False
+    conn.close()
+    return user and check_password_hash(user[0], password)
+
+
+def add_movie(title, year, genre):
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
+
+    cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)", (title, year, genre))
+    conn.commit()
+    conn.close()
+
+
+def get_movies():
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM movies")
+    movies = cursor.fetchall()
+
+    conn.close()
+    return movies
+
+
+def delete_movie(movie_id):
+    conn = sqlite3.connect("movies.db")
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
+    conn.commit()
+    conn.close()
+
+
+create_tables()
