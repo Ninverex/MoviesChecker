@@ -1,3 +1,5 @@
+import sqlite3  # Dodajemy import sqlite3
+from werkzeug.security import check_password_hash  # Dodajemy import check_password_hash
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QSpacerItem, QSizePolicy
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import Signal, Qt
@@ -68,9 +70,19 @@ class LoginScreen(QWidget):
         login = self.input_login.text()
         password = self.input_password.text()
 
-        if login_user(login, password):
+        conn = sqlite3.connect("movies.db")
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, password FROM users WHERE login = ?", (login,))
+        user = cursor.fetchone()
+
+        conn.close()
+
+        if user and check_password_hash(user[1], password):  # Teraz check_password_hash jest zaimportowana
+            # Zalogowano poprawnie, emitujemy sygnał
+            self.logged_in_user_id = user[0]  # Ustawiamy logged_in_user_id
+            self.login_success.emit()  # Emitujemy sygnał informujący o udanym logowaniu
             QMessageBox.information(self, "Success", "Login successful!")
-            self.login_success.emit()
         else:
             QMessageBox.warning(self, "Error", "Invalid login or password!")
 

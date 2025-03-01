@@ -17,7 +17,9 @@ def create_tables():
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         title TEXT NOT NULL,
                         year INTEGER,
-                        genre TEXT)''')
+                        genre TEXT,
+                        user_id INTEGER,
+                        FOREIGN KEY(user_id) REFERENCES users(id))''')  # Dodanie powiązania z tabelą users
 
     conn.commit()
     conn.close()
@@ -76,6 +78,5 @@ def delete_movie(movie_id):
     cursor.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
     conn.commit()
     conn.close()
-
 
 create_tables()

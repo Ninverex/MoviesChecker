@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from reportlab.pdfgen import canvas
+from PySide6.QtCore import QTimer
 
 
 class MainWindow(QMainWindow):
@@ -18,6 +19,11 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Movies Checker")
         self.setGeometry(100, 100, 1000, 600)
+
+        # Zmienna przechowująca id zalogowanego użytkownika
+        self.logged_in_user_id = None
+
+        # Ładowanie zewnętrznego pliku .qss
         self.setStyleSheet(open("style.qss", "r").read())
 
         central_widget = QWidget()
@@ -40,28 +46,45 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.btn_load_csv)
         left_layout.addStretch()
 
-
         self.btn_logout = QPushButton("Logout")
-
-
         left_layout.addWidget(self.btn_logout)
 
         # --- Centralna część (Tabela) ---
         self.center_panel = QWidget()
         center_layout = QVBoxLayout(self.center_panel)
 
-        # --- Filtry ---
+        self.label_title = QLabel("Movies List")
+        self.label_title.setStyleSheet("font-size: 20px; font-weight: bold;")
+
+        self.table = QTableWidget(0, 4)
+
+        self.table.setHorizontalHeaderLabels(["Title", "Year", "Genre", "Added by"])
+
+        center_layout.addWidget(self.label_title)
+        center_layout.addWidget(self.table)
+
+        # --- Prawy panel (Formularz + Filtry) ---
+        self.right_panel = QWidget()
+        self.right_panel.setFixedWidth(250)
+        right_layout = QVBoxLayout(self.right_panel)
+
+        # --- Filtry --- Zmiana układu na QVBoxLayout (pionowy)
         self.filter_panel = QWidget()
-        filter_layout = QHBoxLayout(self.filter_panel)
+        filter_layout = QVBoxLayout(self.filter_panel)  # Zmieniamy na QVBoxLayout
 
         # Filtrowanie po gatunku
-        self.filter_genre = QComboBox()
+        self.filter_genre = QComboBox()  # dodajemy 'self.'
         self.filter_genre.addItem("All Genres")
         self.filter_genre.addItems([
             "Action", "Adventure", "Comedy", "Drama", "Horror", "Thriller",
             "Science Fiction (Sci-Fi)", "Fantasy", "Romance", "Mystery", "Crime",
             "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
         ])
+
+        # Dodanie filtra sortowania
+        self.filter_sort = QComboBox()
+        self.filter_sort.addItem("Sort by Year: Ascending")
+        self.filter_sort.addItem("Sort by Year: Descending")
 
         # Filtrowanie po roku
         self.filter_year = QLineEdit()
@@ -73,28 +96,19 @@ class MainWindow(QMainWindow):
         self.btn_reset_filter = QPushButton("Reset")
         self.btn_reset_filter.clicked.connect(self.reset_filters)
 
-        filter_layout.addWidget(QLabel("Filter by:"))
-        filter_layout.addWidget(self.filter_genre)
-        filter_layout.addWidget(self.filter_year)
+        # Dodajemy elementy do pionowego układu
+        filter_layout.addWidget(QLabel("Filter by Genre:"))
+        filter_layout.addWidget(self.filter_genre)  # Gatunki
+        filter_layout.addWidget(QLabel("Sort by Year:"))
+        filter_layout.addWidget(self.filter_sort)  # Sortowanie
+        filter_layout.addWidget(QLabel("Filter by Year:"))
+        filter_layout.addWidget(self.filter_year)  # Rok
         filter_layout.addWidget(self.btn_apply_filter)
         filter_layout.addWidget(self.btn_reset_filter)
 
-        self.label_title = QLabel("Movies List")
-        self.label_title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        right_layout.addWidget(self.filter_panel)
 
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Title", "Year", "Genre"])
-        self.load_movies()
-
-        center_layout.addWidget(self.label_title)
-        center_layout.addWidget(self.filter_panel)
-        center_layout.addWidget(self.table)
-
-        # --- Prawy panel (Formularz) ---
-        self.right_panel = QWidget()
-        self.right_panel.setFixedWidth(250)
-        right_layout = QVBoxLayout(self.right_panel)
-
+        # --- Formularz do dodawania filmu ---
         self.label_add_movie = QLabel("Add Movie")
         self.label_add_movie.setAlignment(Qt.AlignCenter)
 
@@ -134,6 +148,9 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central_widget)
 
+        # Opóźnienie wywołania load_movies, aby upewnić się, że GUI jest w pełni załadowane
+        QTimer.singleShot(0, self.load_movies)  # Wywołaj load_movies po załadowaniu GUI
+
         # Podłączenie przycisków do metod
         self.btn_logout.clicked.connect(self.logout)
         self.btn_save_json.clicked.connect(self.save_to_json)
@@ -142,58 +159,76 @@ class MainWindow(QMainWindow):
         self.btn_load_csv.clicked.connect(self.load_from_csv)
 
     def load_movies(self):
-        self.table.setRowCount(0)
+        self.table.setRowCount(0)  # Usuwamy stare dane z tabeli
         conn = sqlite3.connect("movies.db")
         cursor = conn.cursor()
 
         # Pobierz wartości filtrów
         genre_filter = self.filter_genre.currentText()
         year_filter = self.filter_year.text()
+        sort_order = self.filter_sort.currentText()  # Pobranie wartości z filtra sortowania
 
-        # Buduj zapytanie SQL
-        query = "SELECT title, year, genre FROM movies"
+        print(f"Filtr gatunku: {genre_filter}")
+        print(f"Filtr roku: {year_filter}")
+        print(f"Porządek sortowania: {sort_order}")
+
+        # Budowanie zapytania SQL
+        query = "SELECT movies.title, movies.year, movies.genre, users.login FROM movies JOIN users ON movies.user_id = users.id"
         params = []
 
         conditions = []
         if genre_filter != "All Genres":
-            conditions.append("genre = ?")
+            conditions.append("movies.genre = ?")
             params.append(genre_filter)
 
         if year_filter:
             if "-" in year_filter:
                 try:
                     start_year, end_year = map(int, year_filter.split("-"))
-                    conditions.append("year BETWEEN ? AND ?")
+                    conditions.append("movies.year BETWEEN ? AND ?")
                     params.extend([start_year, end_year])
-                except:
-                    QMessageBox.warning(self, "Error", "Invalid year range format! Use YYYY-YYYY")
+                except ValueError:
+                    QMessageBox.warning(self, "Błąd", "Nieprawidłowy format zakresu lat! Użyj formatu YYYY-YYYY")
                     return
             else:
                 try:
                     year = int(year_filter)
-                    conditions.append("year = ?")
+                    conditions.append("movies.year = ?")
                     params.append(year)
-                except:
-                    QMessageBox.warning(self, "Error", "Invalid year format!")
+                except ValueError:
+                    QMessageBox.warning(self, "Błąd", "Nieprawidłowy format roku!")
                     return
 
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
 
-        cursor.execute(query, params)
+        # Dodajemy sortowanie
+        if "Ascending" in sort_order:
+            query += " ORDER BY movies.year ASC"
+        elif "Descending" in sort_order:
+            query += " ORDER BY movies.year DESC"
+
+        print(f"Zapytanie SQL: {query}")
+        cursor.execute(query, tuple(params))  # Wykonaj zapytanie z parametrami
         movies = cursor.fetchall()
         conn.close()
 
-        for row, (title, year, genre) in enumerate(movies):
+        if not movies:
+            QMessageBox.information(self, "Brak wyników", "Brak filmów spełniających kryteria!")
+
+        # Dodawanie wyników do tabeli
+        for row, (title, year, genre, added_by) in enumerate(movies):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(title))
             self.table.setItem(row, 1, QTableWidgetItem(str(year)))
             self.table.setItem(row, 2, QTableWidgetItem(genre))
+            self.table.setItem(row, 3, QTableWidgetItem(added_by))
 
     def reset_filters(self):
-        self.filter_genre.setCurrentIndex(0)
-        self.filter_year.clear()
-        self.load_movies()
+        self.filter_genre.setCurrentIndex(0)  # Ustawienie domyślnego filtra gatunku (All Genres)
+        self.filter_year.clear()  # Czyszczenie pola roku
+        self.filter_sort.setCurrentIndex(0)  # Ustawienie domyślnego porządku sortowania (Ascending)
+        self.load_movies()  # Ponowne załadowanie filmów bez filtrów
 
     def add_movie(self):
         title = self.input_title.text()
@@ -204,9 +239,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "All fields must be filled!")
             return
 
+        # Zmieniamy na:
+        logged_in_user_id = self.logged_in_user_id  # Bezpośrednie odwołanie do zmiennej
+
         conn = sqlite3.connect("movies.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)", (title, year, genre))
+        cursor.execute("INSERT INTO movies (title, year, genre, user_id) VALUES (?, ?, ?, ?)",
+                       (title, year, genre, logged_in_user_id))
         conn.commit()
         conn.close()
 
