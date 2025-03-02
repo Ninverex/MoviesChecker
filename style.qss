@@ -1,72 +1,104 @@
 /* Styl głównego okna */
 QMainWindow {
-    background-color: #1C1B29;
+    background-color: #16151D;
     color: white;
 }
 
-/* Styl panelu bocznego */
+/* Panel boczny */
 QWidget#left_panel {
-    background-color: #25243A;
+    background-color: #1E1C2A;
+    border-radius: 8px;
+    margin: 8px;
+    padding: 6px;
 }
 
-/* Przycisk w panelu bocznym */
+/* Przyciski panelu bocznego */
 QPushButton {
-    background-color: transparent;
+    background-color: #2D2B40;
     color: white;
     border: none;
     padding: 10px;
-    text-align: left;
-    font-size: 14px;
+    margin: 4px;
+    font-size: 13px;
+    border-radius: 5px;
+    min-width: 160px;
 }
 
 QPushButton:hover {
     background-color: #3A3A5E;
-    border-radius: 5px;
 }
 
-/* Styl tabeli */
+/* Tabela */
 QTableWidget {
-    background-color: #2A2A40;
+    background-color: #25243A;
     border: 1px solid #3A3A5E;
-    color: white;
+    border-radius: 8px;
+    margin: 8px;
     gridline-color: #3A3A5E;
 }
 
 QHeaderView::section {
-    background-color: #3A3A5E;
-    color: white;
-    padding: 5px;
-    border: none;
+    background-color: #2D2B40;
+    padding: 6px;
+    font-size: 13px;
 }
 
 /* Prawy panel */
 QWidget#right_panel {
-    background-color: #25243A;
-    border-left: 2px solid #3A3A5E;
-    padding: 10px;
+    background-color: #1E1C2A;
+    border-left: 2px solid #2D2B40;
+    padding: 12px;
+    min-width: 280px;
+    max-width: 320px;
+    margin: 8px;
 }
 
 /* Formularz */
-QLineEdit {
-    background-color: #3A3A5E;
-    border: 1px solid #555;
-    padding: 5px;
-    color: white;
+QLineEdit, QComboBox {
+    background-color: #2D2B40;
+    border: 1px solid #3A3A5E;
+    padding: 6px;
+    margin: 4px 0;
+    font-size: 13px;
+    min-height: 28px;
+}
+
+QPushButton#btn_add_movie {
+    background-color: #6C5CE7;
+    padding: 10px;
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+/* Filtry */
+QWidget#filter_panel {
+    spacing: 8px;
+}
+
+QLabel {
+    font-size: 14px;
+    margin: 6px 0;
+}
+
+QLabel#label_title {
+    font-size: 20px;
+    margin: 12px;
+}
+
+/* Przyciski filtrów */
+QPushButton#btn_apply_filter,
+QPushButton#btn_reset_filter {
+    padding: 8px;
+    margin: 6px 0;
+    font-size: 13px;
+    min-height: 34px;
     border-radius: 5px;
 }
 
-QPushButton#btn_add_user {
-    background-color: #A55EEA;
-    border-radius: 8px;
-    padding: 8px;
-    color: white;
+QPushButton#btn_apply_filter {
+    background-color: #6C5CE7;
 }
 
-QPushButton#btn_add_user:hover {
-    background-color: #8756C9;
-}
-
-/* Zmieniamy kolor tekstu w QLabel na biały */
-QLabel {
-    color: white;
+QPushButton#btn_reset_filter {
+    background-color: #2D2B40;
 }
