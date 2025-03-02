@@ -11,7 +11,6 @@ from reportlab.pdfgen import canvas
 from PySide6.QtCore import QTimer
 
 
-
 class MainWindow(QMainWindow):
     logout_success = Signal()
 
@@ -36,10 +35,10 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(self.left_panel)
 
         # Przyciski do obsługi danych
-        self.btn_save_json = QPushButton("💾 Save to JSON")
-        self.btn_load_json = QPushButton("📂 Load from JSON")
-        self.btn_save_csv = QPushButton("💾 Save to CSV")
-        self.btn_load_csv = QPushButton("📂 Load from CSV")
+        self.btn_save_json = QPushButton("Save to JSON")
+        self.btn_load_json = QPushButton("Load from JSON")
+        self.btn_save_csv = QPushButton("Save to CSV")
+        self.btn_load_csv = QPushButton("Load from CSV")
 
         left_layout.addWidget(self.btn_save_json)
         left_layout.addWidget(self.btn_load_json)
@@ -47,19 +46,17 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.btn_load_csv)
         left_layout.addStretch()
 
-        self.btn_logout = QPushButton("🚪 Logout")
+        self.btn_logout = QPushButton("Logout")
         left_layout.addWidget(self.btn_logout)
 
         # --- Centralna część (Tabela) ---
         self.center_panel = QWidget()
         center_layout = QVBoxLayout(self.center_panel)
 
-        self.label_title = QLabel("🎬 Movies List")
-        self.label_title.setObjectName("label_title")
-        self.label_title.setStyleSheet("font-size: 30px; font-weight: bold;")
+        self.label_title = QLabel("Movies List")
+        self.label_title.setStyleSheet("font-size: 20px; font-weight: bold;")
 
         self.table = QTableWidget(0, 4)
-
 
         self.table.setHorizontalHeaderLabels(["Title", "Year", "Genre", "Added by"])
 
@@ -94,11 +91,10 @@ class MainWindow(QMainWindow):
         self.filter_year.setPlaceholderText("Year (e.g. 2020 or 2010-2020)")
 
         # Przyciski filtrowania
-        self.btn_apply_filter = QPushButton("🔍 Apply Filters")
+        self.btn_apply_filter = QPushButton("Apply Filters")
         self.btn_apply_filter.clicked.connect(self.load_movies)
-        self.btn_reset_filter = QPushButton("🔄 Reset")
+        self.btn_reset_filter = QPushButton("Reset")
         self.btn_reset_filter.clicked.connect(self.reset_filters)
-
 
         # Dodajemy elementy do pionowego układu
         filter_layout.addWidget(QLabel("Filter by Genre:"))
@@ -113,7 +109,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(self.filter_panel)
 
         # --- Formularz do dodawania filmu ---
-        self.label_add_movie = QLabel("➕ Add Movie")
+        self.label_add_movie = QLabel("Add Movie")
         self.label_add_movie.setAlignment(Qt.AlignCenter)
 
         self.input_title = QLineEdit()
@@ -129,14 +125,13 @@ class MainWindow(QMainWindow):
             "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
         ])
 
-        self.btn_add_movie = QPushButton("✅ Add Movie")
+        self.btn_add_movie = QPushButton("Add Movie")
         self.btn_add_movie.clicked.connect(self.add_movie)
-        self.btn_add_movie.setObjectName("btn_add_movie")
 
-        self.btn_delete_movie = QPushButton("🗑️ Delete Selected")
+        self.btn_delete_movie = QPushButton("Delete Selected")
         self.btn_delete_movie.clicked.connect(self.delete_movie)
 
-        self.btn_export_pdf = QPushButton("📄 Export to PDF")
+        self.btn_export_pdf = QPushButton("Export to PDF")
         self.btn_export_pdf.clicked.connect(self.export_to_pdf)
 
         right_layout.addWidget(self.label_add_movie)
