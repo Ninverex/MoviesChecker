@@ -2,14 +2,174 @@ import sys
 import sqlite3
 import json
 import csv
+import requests
+import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog, QComboBox
+    QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QFileDialog, QComboBox,
+    QDialog, QTextEdit, QSplitter, QFrame
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QPixmap, QImage
 from reportlab.pdfgen import canvas
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHeaderView, QSizePolicy
+from io import BytesIO
+
+# Klucz API do OMDB API
+OMDB_API_KEY = "x"
+
+
+class MovieDetailsDialog(QDialog):
+    def __init__(self, movie_data, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Szczegóły filmu: {movie_data['title']}")
+        self.setMinimumSize(800, 500)
+
+        # Główny layout
+        main_layout = QHBoxLayout(self)
+
+        # Lewy panel na plakat
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+
+        # Plakat filmu
+        self.poster_label = QLabel()
+        self.poster_label.setFixedSize(300, 450)
+        self.poster_label.setAlignment(Qt.AlignCenter)
+        self.poster_label.setStyleSheet("border: 1px solid #ccc; background-color: #f5f5f5;")
+        left_layout.addWidget(self.poster_label)
+        left_layout.addWidget(QLabel("Źródło: OMDb API"))
+
+        # Prawy panel na informacje
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+
+        # Podstawowe informacje
+        self.title_label = QLabel(f"<h1>{movie_data['title']}</h1>")
+        if movie_data.get('year'):
+            self.title_label.setText(f"<h1>{movie_data['title']} ({movie_data['year']})</h1>")
+        self.year_label = QLabel("")
+        genre_label = QLabel(f"<h3>Gatunek: {movie_data['genre']}</h3>")
+        added_by_label = QLabel(f"<b>Dodane przez:</b> {movie_data['added_by']}")
+
+        # Informacje pobrane z API
+        self.info_container = QWidget()
+        info_layout = QVBoxLayout(self.info_container)
+
+        self.plot_label = QLabel("<b>Opis:</b>")
+        self.plot_text = QTextEdit()
+        self.plot_text.setReadOnly(True)
+        self.plot_text.setMaximumHeight(150)
+
+        self.director_label = QLabel("<b>Reżyser:</b> Ładowanie...")
+        self.actors_label = QLabel("<b>Obsada:</b> Ładowanie...")
+        self.ratings_label = QLabel("<b>Oceny:</b> Ładowanie...")
+
+        # Dodanie elementów do layoutu informacyjnego
+        info_layout.addWidget(self.plot_label)
+        info_layout.addWidget(self.plot_text)
+        info_layout.addWidget(self.director_label)
+        info_layout.addWidget(self.actors_label)
+        info_layout.addWidget(self.ratings_label)
+
+        # Dodanie wszystkich elementów do prawego panelu
+        right_layout.addWidget(self.title_label)
+        right_layout.addWidget(self.year_label)
+        right_layout.addWidget(genre_label)
+        right_layout.addWidget(added_by_label)
+
+        # Linia oddzielająca
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        right_layout.addWidget(separator)
+
+        right_layout.addWidget(QLabel("<h3>Szczegóły z OMDb:</h3>"))
+        right_layout.addWidget(self.info_container)
+        right_layout.addStretch()
+
+        # Przycisk zamknięcia
+        close_button = QPushButton("Zamknij")
+        close_button.clicked.connect(self.accept)
+        right_layout.addWidget(close_button)
+
+        # Dodanie paneli do głównego layoutu
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel, 1)  # Prawy panel będzie się rozciągać
+
+        # Pobierz dane z OMDB API
+        self.fetch_movie_data(movie_data['title'])
+
+    def fetch_movie_data(self, title):
+        """Pobiera dane filmu z OMDb API tylko na podstawie tytułu"""
+        try:
+            url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={title}"
+            response = requests.get(url)
+            data = response.json()
+
+            if data.get('Response') == 'True':
+                # Aktualizuj informacje o filmie
+                year = data.get('Year', 'N/A')
+                self.title_label.setText(f"<h1>{title} ({year})</h1>")
+
+                self.plot_text.setText(data.get('Plot', 'Brak opisu'))
+                self.director_label.setText(f"<b>Reżyser:</b> {data.get('Director', 'Nieznany')}")
+                self.actors_label.setText(f"<b>Obsada:</b> {data.get('Actors', 'Nieznana')}")
+
+                # Formatowanie ocen
+                ratings_text = "<b>Oceny:</b><br>"
+                for rating in data.get('Ratings', []):
+                    ratings_text += f"• {rating['Source']}: {rating['Value']}<br>"
+                if not data.get('Ratings'):
+                    ratings_text += "Brak ocen"
+                self.ratings_label.setText(ratings_text)
+
+                # Pobieranie plakatu
+                poster_url = data.get('Poster')
+                if poster_url and poster_url != 'N/A':
+                    self.load_poster(poster_url)
+                else:
+                    self.poster_label.setText("Brak plakatu")
+
+                # Zwróć rok filmu do aktualizacji w bazie danych (jeśli potrzebne)
+                return year
+            else:
+                # Wyświetl informację o braku danych
+                self.plot_text.setText("Nie znaleziono informacji o filmie w bazie OMDB.")
+                self.director_label.setText("<b>Reżyser:</b> Brak danych")
+                self.actors_label.setText("<b>Obsada:</b> Brak danych")
+                self.ratings_label.setText("<b>Oceny:</b> Brak danych")
+                self.poster_label.setText("Brak plakatu")
+                return None
+
+        except Exception as e:
+            self.plot_text.setText(f"Błąd podczas pobierania danych: {str(e)}")
+            self.director_label.setText("<b>Reżyser:</b> Błąd pobierania")
+            self.actors_label.setText("<b>Obsada:</b> Błąd pobierania")
+            self.ratings_label.setText("<b>Oceny:</b> Błąd pobierania")
+            self.poster_label.setText("Błąd pobierania plakatu")
+            return None
+
+    def load_poster(self, url):
+        """Pobiera i wyświetla plakat filmu"""
+        try:
+            response = requests.get(url)
+            image_data = BytesIO(response.content)
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data.getvalue())
+
+            # Dostosuj rozmiar plakatu do etykiety
+            scaled_pixmap = pixmap.scaled(
+                self.poster_label.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.poster_label.setPixmap(scaled_pixmap)
+
+        except Exception as e:
+            self.poster_label.setText(f"Błąd ładowania plakatu:\n{str(e)}")
+
 
 class MainWindow(QMainWindow):
     logout_success = Signal()
@@ -24,7 +184,10 @@ class MainWindow(QMainWindow):
         self.logged_in_user_id = None
 
         # Ładowanie zewnętrznego pliku .qss
-        self.setStyleSheet(open("style.qss", "r").read())
+        try:
+            self.setStyleSheet(open("style.qss", "r").read())
+        except:
+            print("Nie można znaleźć pliku style.qss - używam domyślnego stylu")
 
         central_widget = QWidget()
         main_layout = QHBoxLayout(central_widget)
@@ -77,8 +240,17 @@ class MainWindow(QMainWindow):
 
         self.table.setHorizontalHeaderLabels(["Title", "Year", "Genre", "Added by"])
 
+        # Podłączenie sygnału kliknięcia w wiersz do metody wyświetlania szczegółów
+        self.table.cellDoubleClicked.connect(self.show_movie_details)
+
         center_layout.addWidget(self.label_title)
         center_layout.addWidget(self.table)
+
+        # Dodajemy informację dla użytkownika
+        info_label = QLabel("Kliknij dwukrotnie na film, aby zobaczyć szczegóły i plakat")
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setStyleSheet("color: #666; font-style: italic;")
+        center_layout.addWidget(info_label)
 
         # --- Prawy panel (Formularz + Filtry) ---
         self.right_panel = QWidget()
@@ -94,7 +266,7 @@ class MainWindow(QMainWindow):
         self.filter_genre.addItem("All Genres")
         self.filter_genre.addItems([
             "Action", "Adventure", "Comedy", "Drama", "Horror", "Thriller",
-            "Science Fiction (Sci-Fi)", "Fantasy", "Romance", "Mystery", "Crime",
+            "Science Fiction", "Fantasy", "Romance", "Mystery", "Crime",
             "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
         ])
 
@@ -112,7 +284,6 @@ class MainWindow(QMainWindow):
         self.btn_apply_filter.clicked.connect(self.load_movies)
         self.btn_reset_filter = QPushButton("🔄 Reset")
         self.btn_reset_filter.clicked.connect(self.reset_filters)
-
 
         # Dodajemy elementy do pionowego układu
         filter_layout.addWidget(QLabel("Filter by Genre:"))
@@ -132,16 +303,8 @@ class MainWindow(QMainWindow):
 
         self.input_title = QLineEdit()
         self.input_title.setPlaceholderText("Title")
-        self.input_year = QLineEdit()
-        self.input_year.setPlaceholderText("Year")
 
-        self.input_genre = QComboBox()
-        self.input_genre.setPlaceholderText("Genre")
-        self.input_genre.addItems([
-            "Action", "Adventure", "Comedy", "Drama", "Horror", "Thriller",
-            "Science Fiction (Sci-Fi)", "Fantasy", "Romance", "Mystery", "Crime",
-            "Superhero", "Musical", "Western", "War", "Animation", "Documentary"
-        ])
+        # Usunięto pole wyboru gatunku (input_genre)
 
         self.btn_add_movie = QPushButton("✅ Add Movie")
         self.btn_add_movie.clicked.connect(self.add_movie)
@@ -155,8 +318,6 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(self.label_add_movie)
         right_layout.addWidget(self.input_title)
-        right_layout.addWidget(self.input_year)
-        right_layout.addWidget(self.input_genre)
         right_layout.addWidget(self.btn_add_movie)
         right_layout.addWidget(self.btn_delete_movie)
         right_layout.addWidget(self.btn_export_pdf)
@@ -176,6 +337,49 @@ class MainWindow(QMainWindow):
         self.btn_load_json.clicked.connect(self.load_from_json)
         self.btn_save_csv.clicked.connect(self.save_to_csv)
         self.btn_load_csv.clicked.connect(self.load_from_csv)
+
+    def get_movie_info_from_api(self, title):
+        """Pobiera informacje o filmie z OMDb API na podstawie tytułu"""
+        try:
+            url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={title}"
+            response = requests.get(url)
+            data = response.json()
+
+            if data.get('Response') == 'True':
+                year = data.get('Year', 'N/A')
+                # Pobierz gatunek filmu i sformatuj go
+                genre = data.get('Genre', 'N/A')
+                # Jeśli gatunek zawiera kilka gatunków oddzielonych przecinkami, weź pierwszy
+                if ',' in genre:
+                    genre = genre.split(',')[0].strip()
+
+                return {'year': year, 'genre': genre}
+            return {'year': 'N/A', 'genre': 'N/A'}
+        except:
+            return {'year': 'N/A', 'genre': 'N/A'}
+
+    def show_movie_details(self, row, column):
+        """Wyświetla szczegóły filmu w nowym oknie dialogowym"""
+        if row < 0:
+            return
+
+        # Pobierz dane z tabeli
+        title = self.table.item(row, 0).text()
+        year = self.table.item(row, 1).text()
+        genre = self.table.item(row, 2).text()
+        added_by = self.table.item(row, 3).text()
+
+        # Przygotuj dane filmu do przekazania do okna szczegółów
+        movie_data = {
+            'title': title,
+            'year': year,
+            'genre': genre,
+            'added_by': added_by
+        }
+
+        # Utwórz i wyświetl okno dialogowe ze szczegółami
+        dialog = MovieDetailsDialog(movie_data, self)
+        dialog.exec()
 
     def load_movies(self):
         self.table.setRowCount(0)  # Usuwamy stare dane z tabeli
@@ -252,14 +456,32 @@ class MainWindow(QMainWindow):
 
     def add_movie(self):
         title = self.input_title.text()
-        year = self.input_year.text()
-        genre = self.input_genre.currentText()
 
-        if not title or not year or not genre:
-            QMessageBox.warning(self, "Error", "All fields must be filled!")
+        if not title:
+            QMessageBox.warning(self, "Error", "Title must be filled!")
             return
 
-        # Zmieniamy na:
+        # Pobierz informacje o filmie z API
+        movie_info = self.get_movie_info_from_api(title)
+        year = movie_info['year']
+        genre = movie_info['genre']
+
+        # Jeśli nie udało się pobrać danych, daj użytkownikowi znać
+        if year == 'N/A' or genre == 'N/A':
+            response = QMessageBox.question(self, "Brak informacji o filmie",
+                                            "Nie udało się automatycznie pobrać informacji o tym filmie. Czy chcesz dodać film bez tych informacji?",
+                                            QMessageBox.Yes | QMessageBox.No)
+
+            if response == QMessageBox.No:
+                return
+
+            # Jeśli użytkownik chce dodać film mimo braku danych, ustaw domyślne wartości
+            if year == 'N/A':
+                year = 0
+            if genre == 'N/A':
+                genre = "Unknown"
+
+        # Pobierz ID zalogowanego użytkownika
         logged_in_user_id = self.logged_in_user_id  # Bezpośrednie odwołanie do zmiennej
 
         conn = sqlite3.connect("movies.db")
@@ -271,8 +493,28 @@ class MainWindow(QMainWindow):
 
         self.load_movies()
         self.input_title.clear()
-        self.input_year.clear()
-        self.input_genre.setCurrentIndex(0)
+
+        # Informacja o dodaniu filmu
+        QMessageBox.information(self, "Film dodany",
+                                f"Film '{title}' został dodany do bazy danych.\n\nRok: {year}\nGatunek: {genre}")
+
+        # Sprawdź, czy możemy pobrać plakat dla nowo dodanego filmu
+        self.check_movie_poster(title)
+
+    def check_movie_poster(self, title):
+        """Sprawdza dostępność plakatu dla filmu w OMDB API"""
+        try:
+            url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={title}"
+            response = requests.get(url)
+            data = response.json()
+
+            if data.get('Response') == 'True' and data.get('Poster') != 'N/A':
+                QMessageBox.information(self, "Plakat dostępny",
+                                        f"Plakat dla filmu '{title}' został znaleziony w bazie OMDB. "
+                                        f"Możesz zobaczyć go klikając dwukrotnie na film w tabeli.")
+        except:
+            # Ignorujemy błędy - to tylko sprawdzenie dodatkowe
+            pass
 
     def delete_movie(self):
         selected_row = self.table.currentRow()
@@ -294,20 +536,103 @@ class MainWindow(QMainWindow):
         if not file_name:
             return
 
+        # Pobierz aktywne filtry
+        genre_filter = self.filter_genre.currentText()
+        year_filter = self.filter_year.text()
+        sort_order = self.filter_sort.currentText()
+
+        # Utwórz tytuł raportu na podstawie zastosowanych filtrów
+        report_title = "Movies List"
+        filter_details = []
+
+        if genre_filter != "All Genres":
+            filter_details.append(f"Genre: {genre_filter}")
+        if year_filter:
+            filter_details.append(f"Year: {year_filter}")
+        if sort_order:
+            filter_details.append(f"Sorted: {sort_order}")
+
+        if filter_details:
+            report_subtitle = " | ".join(filter_details)
+        else:
+            report_subtitle = "All Movies"
+
+        # Utwórz PDF
         pdf = canvas.Canvas(file_name)
+        pdf.setTitle(f"Movies Report - {report_subtitle}")
+
+        # Ustaw czcionki i nagłówek
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(100, 800, report_title)
+
+        # Używamy standardowej czcionki zamiast Helvetica-Italic
         pdf.setFont("Helvetica", 12)
-        pdf.drawString(200, 800, "Movies List")
+        pdf.drawString(100, 780, report_subtitle)
 
-        y = 750
-        for row in range(self.table.rowCount()):
-            title = self.table.item(row, 0).text()
-            year = self.table.item(row, 1).text()
-            genre = self.table.item(row, 2).text()
-            pdf.drawString(100, y, f"{title} ({year}) - {genre}")
+        # Dodaj datę raportu
+        from datetime import datetime
+        now = datetime.now()
+        pdf.drawString(100, 750, f"Generated: {now.strftime('%Y-%m-%d %H:%M')}")
+
+        # Linia oddzielająca
+        pdf.line(100, 740, 500, 740)
+
+        # Nagłówki tabeli
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(100, 720, "Title")
+        pdf.drawString(300, 720, "Year")
+        pdf.drawString(350, 720, "Genre")
+        pdf.drawString(450, 720, "Added by")
+
+        # Linia po nagłówkach
+        pdf.line(100, 710, 500, 710)
+
+        # Zawartość tabeli - pobierz z aktualnie wyświetlanych danych
+        pdf.setFont("Helvetica", 10)
+        y = 690
+
+        # Dodaj informację o liczbie filmów
+        total_movies = self.table.rowCount()
+
+        # Sprawdź, czy tabela ma jakiekolwiek wiersze
+        if total_movies == 0:
+            pdf.drawString(100, y, "No movies found matching the filter criteria.")
             y -= 20
+        else:
+            for row in range(total_movies):
+                if y < 100:  # Nowa strona, jeśli nie ma miejsca
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 12)
+                    pdf.drawString(100, 800, f"{report_title} (continued)")
+                    pdf.setFont("Helvetica", 10)
+                    y = 780
 
+                title = self.table.item(row, 0).text()
+                year = self.table.item(row, 1).text()
+                genre = self.table.item(row, 2).text()
+                added_by = self.table.item(row, 3).text()
+
+                # Skróć długie tytuły
+                if len(title) > 25:
+                    title = title[:22] + "..."
+
+                pdf.drawString(100, y, title)
+                pdf.drawString(300, y, year)
+                pdf.drawString(350, y, genre)
+                pdf.drawString(450, y, added_by)
+
+                y -= 20
+
+        # Dodaj podsumowanie na końcu
+        pdf.line(100, y, 500, y)
+        y -= 20
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(100, y, f"Total movies: {total_movies}")
+
+        # Zapisz PDF
         pdf.save()
-        QMessageBox.information(self, "Success", "PDF Exported Successfully!")
+        QMessageBox.information(self, "Success",
+                                f"PDF Exported Successfully!\nSaved {total_movies} movies to {file_name}")
 
     def logout(self):
         self.close()
@@ -335,7 +660,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Error saving JSON: {str(e)}")
 
     def load_from_json(self):
-        """Wczytuje filmy z pliku JSON"""
+        """Wczytuje filmy z pliku JSON, pobierając dane z API na podstawie tytułu"""
         file_name, _ = QFileDialog.getOpenFileName(self, "Load from JSON", "", "JSON Files (*.json)")
         if not file_name:
             return
@@ -347,27 +672,81 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Error loading JSON: {str(e)}")
             return
 
+        # Sprawdź format danych
+        if not movies_list or not isinstance(movies_list, list):
+            QMessageBox.warning(self, "Error", "Invalid JSON file format. Expected a list of movies.")
+            return
+
+        # Pokaż dialog postępu
+        progress = QMessageBox(self)
+        progress.setWindowTitle("Importing movies")
+        progress.setText("Fetching movie details from OMDb API...\nThis may take a moment.")
+        progress.setStandardButtons(QMessageBox.NoButton)
+        progress.show()
+        QApplication.processEvents()  # Aktualizacja interfejsu
+
         conn = sqlite3.connect("movies.db")
         cursor = conn.cursor()
 
         added = 0
-        duplicates = 0
-        for movie in movies_list:
+        skipped = 0
+        errors = 0
+
+        for i, movie in enumerate(movies_list):
+            # Aktualizuj informację o postępie co 5 filmów
+            if i % 5 == 0:
+                progress.setText(f"Fetching movie details from OMDb API...\nProcessed {i}/{len(movies_list)} movies")
+                QApplication.processEvents()
+
+            # Obsługa różnych formatów plików JSON
+            if isinstance(movie, dict):
+                title = movie.get("title", None)
+            elif isinstance(movie, str):
+                title = movie
+            else:
+                errors += 1
+                continue
+
+            if not title:
+                errors += 1
+                continue
+
+            # Pobierz dane z OMDb API
+            movie_info = self.get_movie_info_from_api(title)
+            year = movie_info['year']
+            genre = movie_info['genre']
+
+            # Konwersja roku na int, jeśli to możliwe
+            try:
+                if year != 'N/A':
+                    year = int(year)
+                else:
+                    year = 0
+            except ValueError:
+                year = 0
+
+            # Ustaw domyślną wartość dla gatunku
+            if genre == 'N/A':
+                genre = "Unknown"
+
             # Sprawdź czy film już istnieje
-            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?",
-                         (movie["title"], movie["year"]))
+            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?", (title, year))
             if not cursor.fetchone():
-                cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)",
-                              (movie["title"], movie["year"], movie["genre"]))
+                cursor.execute("INSERT INTO movies (title, year, genre, user_id) VALUES (?, ?, ?, ?)",
+                               (title, year, genre, self.logged_in_user_id or 1))
                 added += 1
             else:
-                duplicates += 1
+                skipped += 1
 
         conn.commit()
         conn.close()
+
+        # Zamknij dialog postępu
+        progress.close()
+
         self.load_movies()
         QMessageBox.information(self, "Import Complete",
-                               f"Added {added} new movies. Skipped {duplicates} duplicates.")
+                                f"Added {added} new movies.\nSkipped {skipped} duplicates.\nErrors: {errors}")
 
     def save_to_csv(self):
         """Zapisuje listę filmów do pliku CSV"""
@@ -391,44 +770,111 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Error saving CSV: {str(e)}")
 
     def load_from_csv(self):
-        """Wczytuje filmy z pliku CSV"""
+        """Wczytuje filmy z pliku CSV, pobierając dane z API na podstawie tytułu"""
         file_name, _ = QFileDialog.getOpenFileName(self, "Load from CSV", "", "CSV Files (*.csv)")
         if not file_name:
             return
 
         try:
             with open(file_name, 'r', newline='') as f:
-                reader = csv.DictReader(f)
-                movies_list = list(reader)
+                # Najpierw sprawdź nagłówki
+                sample = f.read(1024)
+                f.seek(0)
+
+                # Wykryj separator
+                dialect = csv.Sniffer().sniff(sample)
+                has_header = csv.Sniffer().has_header(sample)
+
+                reader = csv.reader(f, dialect)
+
+                # Obsłuż nagłówki lub ich brak
+                if has_header:
+                    headers = next(reader)
+                    title_index = 0  # Domyślnie zakładamy, że tytuł jest w pierwszej kolumnie
+
+                    # Znajdź indeks kolumny z tytułem
+                    for i, header in enumerate(headers):
+                        if header.lower() in ['title', 'tytuł', 'nazwa']:
+                            title_index = i
+                            break
+                else:
+                    title_index = 0  # Brak nagłówków, zakładamy że pierwsza kolumna to tytuł
+
+                # Przeczytaj wszystkie wiersze
+                movies_list = []
+                for row in reader:
+                    if len(row) > title_index:
+                        movies_list.append(row[title_index].strip())
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error loading CSV: {str(e)}")
             return
+
+        if not movies_list:
+            QMessageBox.warning(self, "Error", "No movies found in the CSV file.")
+            return
+
+        # Pokaż dialog postępu
+        progress = QMessageBox(self)
+        progress.setWindowTitle("Importing movies")
+        progress.setText("Fetching movie details from OMDb API...\nThis may take a moment.")
+        progress.setStandardButtons(QMessageBox.NoButton)
+        progress.show()
+        QApplication.processEvents()  # Aktualizacja interfejsu
 
         conn = sqlite3.connect("movies.db")
         cursor = conn.cursor()
 
         added = 0
-        duplicates = 0
-        for row in movies_list:
-            try:
-                year = int(row["year"])
-            except ValueError:
-                continue  # Pomijaj nieprawidłowe lata
+        skipped = 0
+        errors = 0
 
-            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?",
-                         (row["title"], year))
+        for i, title in enumerate(movies_list):
+            # Aktualizuj informację o postępie co 5 filmów
+            if i % 5 == 0:
+                progress.setText(f"Fetching movie details from OMDb API...\nProcessed {i}/{len(movies_list)} movies")
+                QApplication.processEvents()
+
+            if not title:
+                errors += 1
+                continue
+
+            # Pobierz dane z OMDb API
+            movie_info = self.get_movie_info_from_api(title)
+            year = movie_info['year']
+            genre = movie_info['genre']
+
+            # Konwersja roku na int, jeśli to możliwe
+            try:
+                if year != 'N/A':
+                    year = int(year)
+                else:
+                    year = 0
+            except ValueError:
+                year = 0
+
+            # Ustaw domyślną wartość dla gatunku
+            if genre == 'N/A':
+                genre = "Unknown"
+
+            # Sprawdź czy film już istnieje
+            cursor.execute("SELECT * FROM movies WHERE title=? AND year=?", (title, year))
             if not cursor.fetchone():
-                cursor.execute("INSERT INTO movies (title, year, genre) VALUES (?, ?, ?)",
-                              (row["title"], year, row["genre"]))
+                cursor.execute("INSERT INTO movies (title, year, genre, user_id) VALUES (?, ?, ?, ?)",
+                               (title, year, genre, self.logged_in_user_id or 1))
                 added += 1
             else:
-                duplicates += 1
+                skipped += 1
 
         conn.commit()
         conn.close()
+
+        # Zamknij dialog postępu
+        progress.close()
+
         self.load_movies()
         QMessageBox.information(self, "Import Complete",
-                               f"Added {added} new movies. Skipped {duplicates} duplicates.")
+                                f"Added {added} new movies.\nSkipped {skipped} duplicates.\nErrors: {errors}")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
