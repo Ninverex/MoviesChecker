@@ -6,12 +6,13 @@ Aplikacja **Movies Checker** umożliwia zarządzanie kolekcją filmów z integra
 
 ## 📋 Spis treści
 - [Funkcjonalności](#-funkcjonalności)
+- [Podział obowiązków](#-podział-obowiązków)
 - [Dokumentacja kodu](#-dokumentacja-kodu)
 - [Wymagania systemowe](#-wymagania-systemowe)
 - [Instalacja i konfiguracja](#-instalacja-i-konfiguracja)
 - [Uruchomienie](#-uruchomienie)
 - [Jak korzystać?](#-jak-korzystać)
-- [Struktura bazy danych](#-struktura-bazy-danych)
+- [Struktura projektu oraz bazy danych](#-struktura-bazy-danych)
 - [Uwagi](#-uwagi)
 
 ---
@@ -32,7 +33,18 @@ Aplikacja **Movies Checker** umożliwia zarządzanie kolekcją filmów z integra
 - **Usuwanie filmów**: Możliwość usunięcia wybranego filmu z bazy.  
 
 ---
+## Podział obowiązków
+- Mateusz Ostrowski (50%):
+  - Implementacja GUI (klasa MainWindow, layouty, przyciski, tabela).
+  - Integracja z OMDB API (pobieranie danych, wyświetlanie plakatów).
+  - Obsługa eksportu do PDF i formatów tekstowych (JSON/CSV).
+- Maciej Pintal (50%):
+  - Logika biznesowa (połączenie z bazą danych SQLite, zapisywanie i wczytywanie filmów).
+  - Filtrowanie i sortowanie danych (mechanizm zapytań SQL).
+  - Implementacja okien dialogowych (np. MovieDetailsDialog).
+  - Obsługa operacji CRUD (dodawanie, usuwanie filmów).
 
+---
 ## 🧩 Dokumentacja kodu
 ### Klasa `mainWindow`
 #### Opis:
@@ -180,7 +192,14 @@ Okno rejestracji z walidacją formatu e-maila i unikalności danych.
 - Python 3.9 lub nowszy  
 - Biblioteki: `PySide6`, `requests`, `reportlab`, `sqlite3`, `werkzeug`  
 - Klucz API OMDb (bezpłatny na [omdbapi.com](https://www.omdbapi.com/apikey.aspx))  
-
+### Technologie i narzędzia
+- Język programowania: Python
+- GUI: PySide6 (framework Qt dla Pythona)
+- Baza danych: SQLite
+- Integracja z API: OMDB API (pobieranie danych o filmach)
+- Eksport danych:
+    - PDF: biblioteka ReportLab
+    - JSON/CSV: standardowe moduły Pythona (json, csv)
 ---
 
 ## 🔧 Instalacja i konfiguracja
@@ -206,32 +225,42 @@ Okno rejestracji z walidacją formatu e-maila i unikalności danych.
 ### Rejestracja  
 1. Kliknij "Create an Account" na ekranie logowania.  
 2. Wpisz e-mail (np. user@domain.com), unikalny login i hasło.
-3. Kliknij "Sign Up".
+3. Kliknij "Sign Up".  
+![image](https://github.com/user-attachments/assets/df4c44ca-6f58-4e05-9864-09b794632022)  
 
 ### Logowanie
 1. Wpisz login i hasło.
-2. Kliknij "Log In".
+2. Kliknij "Log In".  
+![image](https://github.com/user-attachments/assets/c6f2c7ca-e12d-495a-948c-1e7948a15c7e)  
 
 ### Dodawanie filmu 
 1. Dodawanie filmu
 2. Wpisz tytuł filmu w polu "Title" w prawym panelu głównego okna.
-3. Kliknij "Add Movie". Aplikacja automatycznie pobierze dane z OMDb API.
+3. Kliknij "Add Movie". Aplikacja automatycznie pobierze dane z OMDb API.  
+![image](https://github.com/user-attachments/assets/cd9ebc86-86a8-4aa1-a563-4f59abc51a5a)  
 
 ### Filtrowanie i sortowanie
 - Gatunek: Wybierz z listy rozwijanej.
 - Rok: Wpisz pojedynczy rok (np. 2020) lub zakres (np. 2010-2020).
 - Sortowanie: Wybierz "Ascending" (rosnąco) lub "Descending" (malejąco).
-- Kliknij "Apply Filters", aby zastosować zmiany.
+- Kliknij "Apply Filters", aby zastosować zmiany.  
+![image](https://github.com/user-attachments/assets/e94ea929-7d57-4f4e-a2ff-2a043b2eb691)  
 
 ### Eksport danych
 - PDF: Kliknij "Export to PDF" i wybierz lokalizację pliku.
-- JSON/CSV: Użyj przycisków "Save to JSON" lub "Save to CSV".
+- JSON/CSV: Użyj przycisków "Save to JSON" lub "Save to CSV".  
+![image](https://github.com/user-attachments/assets/961151fc-b08d-46c4-8463-58127e94e0d9)  
 
 ### Szczegóły filmu
-Kliknij dwukrotnie na wybrany wiersz w tabeli, aby otworzyć okno z pełnymi informacjami i plakatem.
+Kliknij dwukrotnie na wybrany wiersz w tabeli, aby otworzyć okno z pełnymi informacjami i plakatem.  
+![image](https://github.com/user-attachments/assets/b4e0e9ca-b8ca-480f-823c-b27d16363a25)  
+
 
 ---
-## 🗃️ Struktura bazy danych
+## 🗃️ Struktura projektu oraz bazy danych
+### Struktura projektu
+![image](https://github.com/user-attachments/assets/d0b33609-ff8a-496e-af93-ba6ea1cd8818)  
+### Struktura bazy danych
 Baza danych movies.db zawiera dwie tabele:
 1. users:
 - id (INTEGER, PRIMARY KEY)
